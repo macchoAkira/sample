@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ATELIER — 服づくり工程シミュレーター</title>
+<style>
+  :root {
+    --bg: #f3efe7;
+    --panel: #fbf9f4;
+    --ink: #2c2a26;
+    --muted: #8a857b;
+    --line: #e3ddd0;
+    --accent: #b5654a;
+    --accent-soft: #e9d6cd;
+    --gold: #c79a3b;
+    --ok: #6b8f5e;
+    --shadow: 0 10px 30px rgba(60, 50, 35, 0.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif;
+    background: radial-gradient(1200px 600px at 80% -10%, #fff8ee 0%, var(--bg) 55%);
+    color: var(--ink);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 28px 20px 60px; }
+
+  header.app {
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line); padding-bottom: 16px; margin-bottom: 22px;
+  }
+  header.app .logo { font-size: 26px; font-weight: 800; letter-spacing: 0.28em; }
+  header.app .logo span { color: var(--accent); }
+  header.app .tag { color: var(--muted); font-size: 13px; letter-spacing: 0.04em; }
+
+  /* progress steps */
+  .steps { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  .steps .st {
+    flex: 1 1 110px; min-width: 92px; text-align: center; font-size: 12px;
+    padding: 8px 4px 10px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--muted); position: relative;
+  }
+  .steps .st .n {
+    display: inline-flex; width: 22px; height: 22px; border-radius: 50%;
+    align-items: center; justify-content: center; font-weight: 700; margin-bottom: 4px;
+    background: #ece6d9; color: var(--muted); font-size: 12px;
+  }
+  .steps .st.active { border-color: var(--accent); color: var(--ink); box-shadow: var(--shadow); }
+  .steps .st.active .n { background: var(--accent); color: #fff; }
+  .steps .st.done { color: var(--ink); }
+  .steps .st.done .n { background: var(--ok); color: #fff; }
+  .steps .st .lbl { display: block; font-weight: 600; }
+
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 820px) { .layout { grid-template-columns: 1fr; } }
+
+  .preview {
+    background: linear-gradient(180deg, #fffdf8, #f4eee2);
+    border: 1px solid var(--line); border-radius: 18px; padding: 18px;
+    position: sticky; top: 16px; box-shadow: var(--shadow);
+  }
+  .preview h3 { margin: 0 0 6px; font-size: 13px; letter-spacing: .14em; color: var(--muted); font-weight: 700; }
+  .preview .stage { width: 100%; aspect-ratio: 1/1.05; display: grid; place-items: center; }
+  .preview svg { width: 100%; height: 100%; }
+  .spec { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+  .spec b { color: var(--ink); font-weight: 600; }
+  .spec .row { display: flex; justify-content: space-between; border-top: 1px dashed var(--line); padding: 3px 0; }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+    padding: 24px 26px; box-shadow: var(--shadow); min-height: 380px;
+  }
+  .panel h2 { margin: 0 0 4px; font-size: 21px; }
+  .panel .lead { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
+
+  .field { margin-bottom: 18px; }
+  .field > label { display: block; font-weight: 700; font-size: 13.5px; margin-bottom: 8px; }
+  .field .hint { color: var(--muted); font-weight: 400; font-size: 12px; }
+
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt {
+    border: 1.5px solid var(--line); background: #fff; border-radius: 12px;
+    padding: 9px 13px; cursor: pointer; font-size: 13.5px; transition: .15s; color: var(--ink);
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .opt small { color: var(--muted); font-size: 11.5px; }
+  .opt:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .opt.sel { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 2px rgba(181,101,74,.12) inset; }
+  .opt .sw { width: 16px; height: 16px; border-radius: 4px; border: 1px solid rgba(0,0,0,.15); }
+
+  input[type=text] {
+    width: 100%; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 10px;
+    font-size: 14px; font-family: inherit; background: #fff; color: var(--ink);
+  }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+
+  .nav { display: flex; justify-content: space-between; margin-top: 26px; gap: 12px; }
+  button.btn {
+    font-family: inherit; font-size: 14px; font-weight: 700; border-radius: 12px;
+    padding: 12px 22px; cursor: pointer; border: 1.5px solid var(--accent);
+    background: var(--accent); color: #fff; transition: .15s;
+  }
+  button.btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
+  button.btn.ghost { background: transparent; color: var(--accent); }
+  button.btn:disabled { opacity: .4; cursor: not-allowed; transform: none; filter: none; }
+
+  .note { background: #fff8ee; border: 1px solid var(--accent-soft); border-radius: 12px;
+    padding: 12px 14px; font-size: 13px; color: #7a5a3f; margin-bottom: 16px; }
+
+  /* budget bar */
+  .budget { display:flex; align-items:center; gap:10px; font-size:13px; margin-bottom: 16px; }
+  .budget .bar { flex:1; height: 9px; border-radius: 6px; background:#ece6d9; overflow:hidden; }
+  .budget .bar i { display:block; height:100%; background: linear-gradient(90deg,#7fae6a,#c79a3b); }
+  .budget.over .bar i { background: linear-gradient(90deg,#d98a5a,#b5654a); }
+
+  /* mini game meter */
+  .mini { text-align:center; }
+  .meter {
+    position: relative; height: 46px; border-radius: 12px; margin: 18px 0;
+    background: linear-gradient(90deg,#e9b4a4,#f1e6c9 35%,#cfe3b8 50%,#f1e6c9 65%,#e9b4a4);
+    border: 1px solid var(--line); overflow: hidden;
+  }
+  .meter .zone {
+    position:absolute; top:0; bottom:0; left:42%; width:16%;
+    background: rgba(107,143,94,.30); border-left:2px dashed #6b8f5e; border-right:2px dashed #6b8f5e;
+  }
+  .meter .ptr { position:absolute; top:-3px; bottom:-3px; width:5px; background:var(--ink); left:0; border-radius:3px; box-shadow:0 0 8px rgba(0,0,0,.3); }
+  .reps { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .resultline { font-size: 14px; min-height: 22px; margin: 6px 0; font-weight:600; }
+  .scorechips { display:flex; justify-content:center; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .scorechips span { background:#fff; border:1px solid var(--line); border-radius:20px; padding:2px 10px; font-size:12px; }
+
+  /* result */
+  .result { text-align:center; }
+  .rank { font-size: 72px; font-weight: 800; line-height:1; margin: 4px 0; }
+  .rank.S{color:#c79a3b;} .rank.A{color:#b5654a;} .rank.B{color:#6b8f5e;} .rank.C{color:#8a857b;}
+  .scorebig { font-size: 18px; color: var(--muted); }
+  .bars { max-width: 460px; margin: 22px auto; text-align:left; }
+  .bars .b { margin-bottom: 12px; }
+  .bars .b .t { display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; }
+  .bars .b .track { height:10px; border-radius:6px; background:#ece6d9; overflow:hidden; }
+  .bars .b .track i { display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--gold)); }
+  .tag-card {
+    display:inline-block; background:#fff; border:1px solid var(--line); border-radius:14px;
+    padding:16px 22px; margin: 8px auto 4px; box-shadow: var(--shadow); text-align:left; min-width: 240px;
+  }
+  .tag-card .brand { font-weight:800; letter-spacing:.2em; font-size:15px; }
+  .tag-card .item { font-size:13px; color:var(--muted); margin-top:2px; }
+  .tag-card .meta { font-size:11.5px; color:var(--muted); margin-top:8px; border-top:1px dashed var(--line); padding-top:6px; }
+  .comment { max-width: 520px; margin: 14px auto 0; font-size: 14px; color:#5e5a51; }
+  footer.f { text-align:center; color:var(--muted); font-size:12px; margin-top:34px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app">
+    <div class="logo">ATEL<span>I</span>ER</div>
+    <div class="tag">服づくり工程シミュレーター — 1着を、最初から最後まで。</div>
+  </header>
+
+  <div class="steps" id="steps"></div>
+
+  <div class="layout">
+    <aside class="preview">
+      <h3>PROTOTYPE PREVIEW</h3>
+      <div class="stage" id="stage"></div>
+      <div class="spec" id="spec"></div>
+    </aside>
+    <main class="panel" id="panel"></main>
+  </div>
+
+  <footer class="f">ATELIER — a clothing-making process game. すべての工程はブラウザ内で完結します。</footer>
+</div>
+
+<script>
+/* ============================ データ ============================ */
+const STEP_LABELS = ["企画","デザイン","生地選び","裁断","縫製","仕上げ","完成"];
+
+const GARMENTS = [
+  { id:"tshirt", name:"Tシャツ",   emoji:"👕", hemY:262, flare:2  },
+  { id:"hoodie", name:"パーカー",   emoji:"🧥", hemY:268, flare:6  },
+  { id:"dress",  name:"ワンピース", emoji:"👗", hemY:348, flare:46 },
+  { id:"jacket", name:"ジャケット", emoji:"🧥", hemY:258, flare:8  },
+];
+const CONCEPTS = ["ミニマル","ストリート","ナチュラル","モード","スポーティ"];
+const SEASONS  = ["春夏","秋冬","オールシーズン"];
+
+const SILHOUETTES = [
+  { id:"slim",    name:"スリム",        bw:112 },
+  { id:"regular", name:"レギュラー",     bw:138 },
+  { id:"over",    name:"オーバーサイズ", bw:176 },
+];
+const NECKLINES = [
+  { id:"crew",   name:"クルーネック", depth:18, half:26 },
+  { id:"v",      name:"Vネック",      depth:46, half:24 },
+  { id:"turtle", name:"タートルネック", depth:-2, half:24 },
+  { id:"boat",   name:"ボートネック",  depth:10, half:38 },
+];
+const SLEEVES = [
+  { id:"short", name:"半袖",       len:158, out:36 },
+  { id:"long",  name:"長袖",       len:250, out:42 },
+  { id:"none",  name:"ノースリーブ", len:0,   out:0  },
+];
+const DETAILS = [
+  { id:"none",   name:"なし",              cost:0 },
+  { id:"pocket", name:"ポケット",          cost:800 },
+  { id:"emb",    name:"刺繍ロゴ",          cost:1500 },
+  { id:"print",  name:"グラフィックプリント", cost:1200 },
+];
+const FABRICS = [
+  { id:"cotton",    name:"コットン",     cost:2000, season:"春夏",        quality:7, desc:"肌触りが良く扱いやすい万能素材" },
+  { id:"linen",     name:"リネン",       cost:2800, season:"春夏",        quality:7, desc:"通気性抜群で夏に最適" },
+  { id:"denim",     name:"デニム",       cost:3200, season:"オールシーズン", quality:8, desc:"丈夫でカジュアルの定番" },
+  { id:"wool",      name:"ウール",       cost:4200, season:"秋冬",        quality:9, desc:"暖かく上品な風合い" },
+  { id:"poly",      name:"ポリエステル", cost:1200, season:"オールシーズン", quality:5, desc:"安価で速乾、シワになりにくい" },
+  { id:"knit",      name:"ニット",       cost:3500, season:"秋冬",        quality:8, desc:"伸縮性がありリラックス感" },
+];
+const COLORS = [
+  { name:"ホワイト",     hex:"#f4f1ea" },
+  { name:"ブラック",     hex:"#2f2d31" },
+  { name:"ネイビー",     hex:"#2c3a5a" },
+  { name:"ベージュ",     hex:"#d6c2a0" },
+  { name:"オリーブ",     hex:"#6b6f4a" },
+  { name:"テラコッタ",   hex:"#bd6a4f" },
+  { name:"サックスブルー", hex:"#7fa6c9" },
+  { name:"マスタード",   hex:"#d2a13a" },
+  { name:"グレー",       hex:"#9aa0a6" },
+  { name:"バーガンディ", hex:"#7a2f3a" },
+];
+
+const BUDGET = 15000;
+
+const CONCEPT_PREF = {
+  "ミニマル":   { detail:["none","emb"], silhouette:["slim","regular"], colors:["ホワイト","ブラック","グレー","ネイビー","ベージュ"] },
+  "ストリート": { garment:["hoodie","tshirt"], detail:["print","pocket"], silhouette:["over"], colors:["ブラック","オリーブ","マスタード"] },
+  "ナチュラル": { fabric:["linen","cotton"], colors:["ベージュ","オリーブ","テラコッタ","ホワイト"], silhouette:["regular","over"] },
+  "モード":     { colors:["ブラック","バーガンディ","グレー"], silhouette:["slim","over"], detail:["none","emb"] },
+  "スポーティ": { garment:["tshirt","hoodie"], fabric:["poly"], sleeve:["short","long"], colors:["ネイビー","サックスブルー","ブラック"] },
+};
+
+/* ============================ 状態 ============================ */
+const state = {
+  step: 0,
+  maxReached: 0,
+  brand: "", item: "",
+  garment: null, concept: null, season: null,
+  silhouette: null, neckline: null, sleeve: null, detail: null,
+  fabric: null, color: null,
+  mini: {}, // {3: score, 4: score, 5: score}
+};
+
+/* ============================ ユーティリティ ============================ */
+const $ = (s) => document.querySelector(s);
+const yen = (n) => "¥" + n.toLocaleString("ja-JP");
+function shade(hex, amt) {
+  let c = hex.replace("#",""); if (c.length===3) c=c.split("").map(x=>x+x).join("");
+  let r=parseInt(c.slice(0,2),16), g=parseInt(c.slice(2,4),16), b=parseInt(c.slice(4,6),16);
+  r=Math.max(0,Math.min(255,r+amt)); g=Math.max(0,Math.min(255,g+amt)); b=Math.max(0,Math.min(255,b+amt));
+  return "#"+[r,g,b].map(x=>x.toString(16).padStart(2,"0")).join("");
+}
+const byId = (arr,id) => arr.find(x=>x.id===id);
+const byName = (arr,nm) => arr.find(x=>x.name===nm);
+
+function spent() {
+  let s = 0;
+  if (state.fabric) s += byId(FABRICS, state.fabric).cost;
+  if (state.detail) s += byId(DETAILS, state.detail).cost;
+  return s;
+}
+
+/* ============================ プレビューSVG ============================ */
+function buildSVG() {
+  const g  = state.garment ? byId(GARMENTS, state.garment) : GARMENTS[0];
+  const sil = state.silhouette ? byId(SILHOUETTES, state.silhouette) : SILHOUETTES[1];
+  const nk  = state.neckline ? byId(NECKLINES, state.neckline) : NECKLINES[0];
+  const sl  = state.sleeve ? byId(SLEEVES, state.sleeve) : SLEEVES[0];
+  const col = state.color ? byName(COLORS, state.color) : { hex:"#d9d4c8" };
+  const fill = col.hex, line = shade(fill, -55), hi = shade(fill, 28);
+
+  const cx = 160, shoulderY = 90, neckTopY = 84, armpitY = 138;
+  const bw = sil.bw, sx1 = cx - bw/2, sx2 = cx + bw/2;
+  const hemY = g.hemY, flare = g.flare + (g.id==="dress"?0:0);
+  const nHalf = nk.half, nDepth = nk.depth;
+  const hasSleeve = sl.id !== "none";
+  const out = sl.out, slen = sl.len;
+
+  let p = `M ${sx1} ${shoulderY} `;
+  p += `L ${cx-nHalf} ${neckTopY} `;
+  p += `Q ${cx} ${neckTopY+nDepth} ${cx+nHalf} ${neckTopY} `;
+  p += `L ${sx2} ${shoulderY} `;
+  if (hasSleeve) { p += `L ${sx2+out} ${shoulderY+10} L ${sx2+out-6} ${slen} L ${sx2-6} ${armpitY} `; }
+  else { p += `L ${sx2} ${armpitY} `; }
+  p += `L ${sx2+flare} ${hemY} `;
+  p += `Q ${cx} ${hemY+10} ${sx1-flare} ${hemY} `;
+  if (hasSleeve) { p += `L ${sx1+6} ${armpitY} L ${sx1-out+6} ${slen} L ${sx1-out} ${shoulderY+10} `; }
+  else { p += `L ${sx1} ${armpitY} `; }
+  p += "Z";
+
+  let extra = "";
+  // タートルネックの襟
+  if (nk.id === "turtle") {
+    extra += `<rect x="${cx-nHalf}" y="${neckTopY-22}" width="${nHalf*2}" height="26" rx="8" fill="${hi}" stroke="${line}" stroke-width="2"/>`;
+  }
+  // パーカー：フード＋ポケット＋ドローコード
+  if (g.id === "hoodie") {
+    extra += `<path d="M ${cx-nHalf-4} ${neckTopY+2} Q ${cx} ${neckTopY-58} ${cx+nHalf+4} ${neckTopY+2}" fill="${hi}" stroke="${line}" stroke-width="2.5"/>`;
+    extra += `<path d="M ${cx-nHalf-4} ${neckTopY+2} Q ${cx} ${neckTopY-30} ${cx+nHalf+4} ${neckTopY+2}" fill="none" stroke="${line}" stroke-width="2" opacity=".6"/>`;
+    extra += `<line x1="${cx-8}" y1="${neckTopY+nDepth}" x2="${cx-8}" y2="${neckTopY+nDepth+34}" stroke="${line}" stroke-width="2.5"/>`;
+    extra += `<line x1="${cx+8}" y1="${neckTopY+nDepth}" x2="${cx+8}" y2="${neckTopY+nDepth+34}" stroke="${line}" stroke-width="2.5"/>`;
+    extra += `<path d="M ${cx-44} ${hemY-58} h88 v34 q-44 16 -88 0 Z" fill="${shade(fill,-12)}" stroke="${line}" stroke-width="2"/>`;
+  }
+  // ジャケット：前立て＋ボタン
+  if (g.id === "jacket") {
+    extra += `<line x1="${cx}" y1="${neckTopY+nDepth}" x2="${cx}" y2="${hemY}" stroke="${line}" stroke-width="2.5"/>`;
+    extra += `<path d="M ${cx} ${neckTopY+nDepth} L ${cx-26} ${neckTopY+nDepth+12} L ${cx-6} ${armpitY} Z" fill="${hi}" stroke="${line}" stroke-width="2"/>`;
+    extra += `<path d="M ${cx} ${neckTopY+nDepth} L ${cx+26} ${neckTopY+nDepth+12} L ${cx+6} ${armpitY} Z" fill="${hi}" stroke="${line}" stroke-width="2"/>`;
+    for (let i=0;i<4;i++){ const by = armpitY+24+i*30; extra += `<circle cx="${cx-9}" cy="${by}" r="3.4" fill="${line}"/>`; }
+  }
+  // ワンピース：ウエスト切替
+  if (g.id === "dress") {
+    extra += `<path d="M ${sx1+4} ${armpitY+46} Q ${cx} ${armpitY+56} ${sx2-4} ${armpitY+46}" fill="none" stroke="${line}" stroke-width="2" opacity=".7"/>`;
+  }
+  // ディテール
+  const det = state.detail;
+  if (det === "pocket") {
+    extra += `<rect x="${cx+16}" y="${armpitY+30}" width="40" height="44" rx="4" fill="none" stroke="${line}" stroke-width="2.4"/>`;
+  } else if (det === "emb") {
+    extra += `<circle cx="${cx+34}" cy="${armpitY+34}" r="11" fill="none" stroke="${line}" stroke-width="2.4"/>`;
+    extra += `<path d="M ${cx+29} ${armpitY+34} l4 5 7 -9" fill="none" stroke="${line}" stroke-width="2.4" stroke-linecap="round"/>`;
+  } else if (det === "print") {
+    extra += `<rect x="${cx-34}" y="${armpitY+22}" width="68" height="74" rx="6" fill="${shade(fill,-22)}" stroke="${line}" stroke-width="2" opacity=".85"/>`;
+    extra += `<path d="M ${cx-14} ${armpitY+78} l18 -34 14 24" fill="none" stroke="${hi}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
+    extra += `<circle cx="${cx+12}" cy="${armpitY+44}" r="6" fill="${hi}"/>`;
+  }
+  // 生地テクスチャ
+  let tex = "";
+  if (state.fabric === "denim") {
+    tex = `<g opacity=".12" stroke="${line}" stroke-width="1">`;
+    for (let y=armpitY; y<hemY; y+=7) tex += `<line x1="${sx1}" y1="${y}" x2="${sx2}" y2="${y+4}"/>`;
+    tex += `</g>`;
+  } else if (state.fabric === "knit") {
+    tex = `<g opacity=".18" fill="${line}">`;
+    for (let y=armpitY; y<hemY; y+=12) for (let x=sx1+8; x<sx2; x+=12) tex += `<circle cx="${x}" cy="${y}" r="1.3"/>`;
+    tex += `</g>`;
+  } else if (state.fabric === "linen") {
+    tex = `<g opacity=".10" stroke="${line}" stroke-width="1">`;
+    for (let x=sx1; x<sx2; x+=6) tex += `<line x1="${x}" y1="${armpitY}" x2="${x}" y2="${hemY}"/>`;
+    tex += `</g>`;
+  }
+
+  return `<svg viewBox="0 0 320 380" xmlns="http://www.w3.org/2000/svg">
+    <defs><clipPath id="body"><path d="${p}"/></clipPath></defs>
+    <path d="${p}" fill="${fill}" stroke="${line}" stroke-width="3" stroke-linejoin="round"/>
+    <g clip-path="url(#body)">${tex}
+      <path d="M ${sx1} 0 L ${sx1+18} 380" stroke="${hi}" stroke-width="10" opacity=".25"/>
+    </g>
+    ${extra}
+  </svg>`;
+}
+
+function renderPreview() {
+  $("#stage").innerHTML = buildSVG();
+  const rows = [];
+  const push = (k,v) => rows.push(`<div class="row"><span>${k}</span><b>${v||"—"}</b></div>`);
+  push("アイテム", state.garment ? byId(GARMENTS,state.garment).name : "");
+  push("コンセプト", state.concept);
+  push("シルエット", state.silhouette ? byId(SILHOUETTES,state.silhouette).name : "");
+  push("生地", state.fabric ? byId(FABRICS,state.fabric).name : "");
+  push("カラー", state.color);
+  $("#spec").innerHTML = rows.join("");
+}
+
+/* ============================ ステップ描画 ============================ */
+function renderSteps() {
+  $("#steps").innerHTML = STEP_LABELS.map((l,i) => {
+    const cls = i===state.step ? "active" : (i<state.step ? "done" : "");
+    return `<div class="st ${cls}"><span class="n">${i+1}</span><span class="lbl">${l}</span></div>`;
+  }).join("");
+}
+
+function optButton(selected, value, label, sub, swatch) {
+  const sw = swatch ? `<span class="sw" style="background:${swatch}"></span>` : "";
+  const s = sub ? ` <small>${sub}</small>` : "";
+  return `<button class="opt ${selected===value?"sel":""}" data-v="${value}">${sw}${label}${s}</button>`;
+}
+
+function bindOpts(container, key, after) {
+  container.querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => {
+    state[key] = b.dataset.v;
+    if (after) after();
+    renderPreview();
+    renderPanel();
+  }));
+}
+
+function budgetBar() {
+  const sp = spent(), pct = Math.min(100, Math.round(sp/BUDGET*100)), over = sp>BUDGET;
+  return `<div class="budget ${over?"over":""}">
+    <span>予算</span>
+    <div class="bar"><i style="width:${pct}%"></i></div>
+    <span><b>${yen(sp)}</b> / ${yen(BUDGET)}</span>
+  </div>`;
+}
+
+function renderPanel() {
+  renderSteps();
+  const panel = $("#panel");
+  const step = state.step;
+
+  if (step === 0) {
+    panel.innerHTML = `
+      <h2>STEP 1 ｜ 企画</h2>
+      <p class="lead">どんなブランドで、誰に向けて、どんな1着を作るのか。すべてはここから始まります。</p>
+      <div class="field"><label>ブランド名 <span class="hint">— あなたのレーベル</span></label>
+        <input type="text" id="brand" maxlength="18" placeholder="例）ATELIER TOKYO" value="${state.brand}"></div>
+      <div class="field"><label>アイテム名 <span class="hint">— この服の名前</span></label>
+        <input type="text" id="item" maxlength="20" placeholder="例）シグネチャー・シャツ" value="${state.item}"></div>
+      <div class="field"><label>アイテムの種類</label>
+        <div class="opts" id="o-garment">${GARMENTS.map(x=>optButton(state.garment,x.id,x.emoji+" "+x.name)).join("")}</div></div>
+      <div class="field"><label>ブランドコンセプト</label>
+        <div class="opts" id="o-concept">${CONCEPTS.map(c=>optButton(state.concept,c,c)).join("")}</div></div>
+      <div class="field"><label>ターゲットシーズン</label>
+        <div class="opts" id="o-season">${SEASONS.map(s=>optButton(state.season,s,s)).join("")}</div></div>`;
+    $("#brand").addEventListener("input", e=>state.brand=e.target.value);
+    $("#item").addEventListener("input", e=>state.item=e.target.value);
+    bindOpts($("#o-garment"),"garment");
+    bindOpts($("#o-concept"),"concept");
+    bindOpts($("#o-season"),"season");
+
+  } else if (step === 1) {
+    panel.innerHTML = `
+      <h2>STEP 2 ｜ デザイン</h2>
+      <p class="lead">パターンの骨格を決めます。選ぶたびに左のプレビューが変化します。</p>
+      <div class="field"><label>シルエット</label>
+        <div class="opts" id="o-sil">${SILHOUETTES.map(x=>optButton(state.silhouette,x.id,x.name)).join("")}</div></div>
+      <div class="field"><label>ネックライン</label>
+        <div class="opts" id="o-neck">${NECKLINES.map(x=>optButton(state.neckline,x.id,x.name)).join("")}</div></div>
+      <div class="field"><label>袖丈</label>
+        <div class="opts" id="o-sleeve">${SLEEVES.map(x=>optButton(state.sleeve,x.id,x.name)).join("")}</div></div>
+      <div class="field"><label>ディテール <span class="hint">— 追加コストに注意</span></label>
+        <div class="opts" id="o-detail">${DETAILS.map(x=>optButton(state.detail,x.id,x.name,x.cost?("+"+yen(x.cost)):"")).join("")}</div></div>`;
+    bindOpts($("#o-sil"),"silhouette");
+    bindOpts($("#o-neck"),"neckline");
+    bindOpts($("#o-sleeve"),"sleeve");
+    bindOpts($("#o-detail"),"detail");
+
+  } else if (step === 2) {
+    panel.innerHTML = `
+      <h2>STEP 3 ｜ 生地選び</h2>
+      <p class="lead">素材で着心地もコストも変わります。シーズンに合った生地を選ぶと評価が上がります。</p>
+      ${budgetBar()}
+      <div class="field"><label>素材</label>
+        <div class="opts" id="o-fab">${FABRICS.map(x=>optButton(state.fabric,x.id,x.name,yen(x.cost)+" / "+x.season)).join("")}</div>
+        <div class="hint" id="fabdesc" style="margin-top:8px">${state.fabric?byId(FABRICS,state.fabric).desc:"素材を選ぶと特徴が表示されます。"}</div></div>
+      <div class="field"><label>カラー</label>
+        <div class="opts" id="o-col">${COLORS.map(c=>optButton(state.color,c.name,c.name,"",c.hex)).join("")}</div></div>`;
+    bindOpts($("#o-fab"),"fabric");
+    bindOpts($("#o-col"),"color");
+
+  } else if (step === 3) {
+    renderMini(panel, {
+      title:"STEP 4 ｜ 裁断",
+      lead:"型紙に沿って生地を裁断します。中央のグリーンゾーンで止めるほど正確に切れます。",
+      reps:3, speed:0.0021, label:"裁断バサミ"
+    });
+  } else if (step === 4) {
+    renderMini(panel, {
+      title:"STEP 5 ｜ 縫製",
+      lead:"ミシンで縫い合わせます。一定のリズムでまっすぐ縫いましょう（4回）。",
+      reps:4, speed:0.0026, label:"ミシン"
+    });
+  } else if (step === 5) {
+    renderMini(panel, {
+      title:"STEP 6 ｜ 仕上げ",
+      lead:"糸始末とアイロンがけ、検品です。丁寧に仕上げて完成度を高めましょう（2回）。",
+      reps:2, speed:0.0019, label:"アイロン"
+    });
+  } else if (step === 6) {
+    renderResult(panel);
+  }
+
+  renderNav();
+}
+
+/* ============================ ミニゲーム ============================ */
+let miniRAF = null;
+function renderMini(panel, cfg) {
+  panel.innerHTML = `
+    <h2>${cfg.title}</h2>
+    <p class="lead">${cfg.lead}</p>
+    <div class="note">🎯 ${cfg.label}が中央の<b>グリーンゾーン</b>に来た瞬間に「ストップ」！</div>
+    <div class="mini">
+      <div class="reps" id="reps"></div>
+      <div class="meter"><div class="zone"></div><div class="ptr" id="ptr"></div></div>
+      <button class="btn" id="stopBtn">ストップ！</button>
+      <div class="resultline" id="rline"></div>
+      <div class="scorechips" id="chips"></div>
+    </div>`;
+
+  const total = cfg.reps;
+  let done = 0, scores = [], pos = 0, dir = 1, frozen = false;
+  const ptr = $("#ptr"), repsEl = $("#reps"), rline = $("#rline"), chips = $("#chips");
+  const updateReps = () => repsEl.textContent = `${done} / ${total} 回完了`;
+  updateReps();
+
+  function loop() {
+    if (!frozen) {
+      pos += dir * cfg.speed * 16;
+      if (pos >= 1) { pos = 1; dir = -1; }
+      if (pos <= 0) { pos = 0; dir = 1; }
+      ptr.style.left = `calc(${(pos*100).toFixed(2)}% - 2px)`;
+    }
+    miniRAF = requestAnimationFrame(loop);
+  }
+  loop();
+
+  $("#stopBtn").addEventListener("click", () => {
+    if (frozen) {
+      // 次の試行へ
+      frozen = false; rline.textContent = "";
+      $("#stopBtn").textContent = "ストップ！";
+      return;
+    }
+    frozen = true;
+    const dist = Math.abs(pos - 0.5);            // 0(中央)〜0.5(端)
+    const sc = Math.max(0, Math.round(100 * (1 - dist/0.5)));
+    scores.push(sc); done++;
+    updateReps();
+    let msg = sc>=92?"✨ パーフェクト！":sc>=75?"👍 きれいに決まった":sc>=50?"まあまあ":"😬 ゆがんでしまった…";
+    rline.textContent = `${sc}点 — ${msg}`;
+    chips.innerHTML = scores.map((s,i)=>`<span>${i+1}回目: ${s}</span>`).join("");
+
+    if (done >= total) {
+      const avg = Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
+      state.mini[state.step] = avg;
+      rline.textContent = `完了！ 平均 ${avg}点`;
+      $("#stopBtn").disabled = true;
+      cancelAnimationFrame(miniRAF); miniRAF = null;
+      renderNav();
+    } else {
+      $("#stopBtn").textContent = "次へ ▶";
+    }
+  });
+}
+function stopMini() { if (miniRAF) { cancelAnimationFrame(miniRAF); miniRAF = null; } }
+
+/* ============================ 採点 ============================ */
+function scoreDesign() {
+  let s = 58;
+  const pref = CONCEPT_PREF[state.concept] || {};
+  if (pref.garment && pref.garment.includes(state.garment)) s += 9;
+  if (pref.silhouette && pref.silhouette.includes(state.silhouette)) s += 8;
+  if (pref.detail && pref.detail.includes(state.detail)) s += 7;
+  if (pref.fabric && pref.fabric.includes(state.fabric)) s += 8;
+  if (pref.colors && pref.colors.includes(state.color)) s += 10;
+  // シーズンと生地の整合
+  const fab = byId(FABRICS, state.fabric);
+  if (fab && (fab.season === state.season || fab.season === "オールシーズン" || state.season === "オールシーズン")) s += 8;
+  return Math.min(100, s);
+}
+function scoreCost() {
+  const sp = spent();
+  if (sp <= BUDGET) return Math.round(70 + (1 - sp/BUDGET) * 30); // 余らせるほど高い
+  return Math.max(20, Math.round(70 - (sp - BUDGET) / BUDGET * 120));
+}
+function finalScore() {
+  const design = scoreDesign();
+  const cutting = state.mini[3] ?? 0;
+  const sewing  = state.mini[4] ?? 0;
+  const finish  = state.mini[5] ?? 0;
+  const cost    = scoreCost();
+  const fabQ = state.fabric ? byId(FABRICS,state.fabric).quality*10 : 50;
+  const craft = Math.round((cutting*0.4 + sewing*0.4 + finish*0.2));
+  const total = Math.round(design*0.28 + craft*0.34 + cost*0.13 + fabQ*0.25);
+  return { design, cutting, sewing, finish, cost, craft, fabQ, total: Math.min(100,total) };
+}
+function rankOf(t){ return t>=90?"S":t>=80?"A":t>=65?"B":"C"; }
+
+/* ============================ 結果画面 ============================ */
+function renderResult(panel) {
+  const r = finalScore();
+  const rank = rankOf(r.total);
+  const brand = (state.brand||"YOUR BRAND").toUpperCase();
+  const item = state.item || (state.garment?byId(GARMENTS,state.garment).name:"アイテム");
+  const fab = state.fabric?byId(FABRICS,state.fabric):null;
+
+  const comments = {
+    S:"完璧な一着。コンセプト・素材・縫製のすべてが噛み合った、店頭に並べられるクオリティです。",
+    A:"高い完成度。細部の精度をもう少し詰めれば、ブランドの看板アイテムになります。",
+    B:"良い手応え。コンセプトと素材の相性、または縫製精度に伸びしろがあります。",
+    C:"まずは一着完成！ シーズンに合う生地選びと、裁断・縫製のリズムを意識すると一気に良くなります。",
+  };
+  const bar = (label,val) => `<div class="b"><div class="t"><span>${label}</span><b>${val}</b></div>
+    <div class="track"><i style="width:${val}%"></i></div></div>`;
+
+  panel.innerHTML = `
+    <div class="result">
+      <h2 style="text-align:center">完成しました！</h2>
+      <div class="rank ${rank}">${rank}</div>
+      <div class="scorebig">完成度 <b style="color:var(--ink);font-size:24px">${r.total}</b> / 100</div>
+      <div class="tag-card">
+        <div class="brand">${brand}</div>
+        <div class="item">${item}</div>
+        <div class="meta">
+          ${state.garment?byId(GARMENTS,state.garment).name:""} ・ ${state.concept||""} ・ ${state.season||""}<br>
+          ${fab?fab.name:""} ／ ${state.color||""} ／ 製作コスト ${yen(spent())}
+        </div>
+      </div>
+      <div class="bars">
+        ${bar("デザイン統一感", r.design)}
+        ${bar("裁断の精度", r.cutting)}
+        ${bar("縫製の精度", r.sewing)}
+        ${bar("仕上げ", r.finish)}
+        ${bar("素材クオリティ", r.fabQ)}
+        ${bar("コスト管理", r.cost)}
+      </div>
+      <p class="comment">${comments[rank]}</p>
+    </div>`;
+}
+
+/* ============================ ナビゲーション ============================ */
+function canAdvance() {
+  switch (state.step) {
+    case 0: return state.garment && state.concept && state.season;
+    case 1: return state.silhouette && state.neckline && state.sleeve && state.detail;
+    case 2: return state.fabric && state.color;
+    case 3: case 4: case 5: return state.mini[state.step] != null;
+    default: return false;
+  }
+}
+function renderNav() {
+  const panel = $("#panel");
+  let nav = panel.querySelector(".nav");
+  if (nav) nav.remove();
+  if (state.step === 6) {
+    nav = document.createElement("div");
+    nav.className = "nav";
+    nav.innerHTML = `<button class="btn ghost" id="back">◀ 戻る</button>
+      <button class="btn" id="again">🔁 もう一度、最初から作る</button>`;
+    panel.appendChild(nav);
+    $("#back").addEventListener("click", goBack);
+    $("#again").addEventListener("click", resetGame);
+    return;
+  }
+  nav = document.createElement("div");
+  nav.className = "nav";
+  const canBack = state.step > 0;
+  nav.innerHTML = `
+    <button class="btn ghost" id="back" ${canBack?"":"disabled"}>◀ 戻る</button>
+    <button class="btn" id="next" ${canAdvance()?"":"disabled"}>次の工程へ ▶</button>`;
+  panel.appendChild(nav);
+  if (canBack) $("#back").addEventListener("click", goBack);
+  $("#next").addEventListener("click", goNext);
+}
+function goNext() {
+  if (!canAdvance()) return;
+  stopMini();
+  state.step = Math.min(6, state.step+1);
+  state.maxReached = Math.max(state.maxReached, state.step);
+  window.scrollTo({top:0,behavior:"smooth"});
+  renderPanel(); renderPreview();
+}
+function goBack() {
+  stopMini();
+  state.step = Math.max(0, state.step-1);
+  renderPanel(); renderPreview();
+}
+function resetGame() {
+  stopMini();
+  Object.assign(state, {
+    step:0, maxReached:0, brand:"", item:"",
+    garment:null, concept:null, season:null,
+    silhouette:null, neckline:null, sleeve:null, detail:null,
+    fabric:null, color:null, mini:{},
+  });
+  window.scrollTo({top:0,behavior:"smooth"});
+  renderPanel(); renderPreview();
+}
+
+/* ============================ 起動 ============================ */
+renderPanel();
+renderPreview();
+</script>
+</body>
+</html>
